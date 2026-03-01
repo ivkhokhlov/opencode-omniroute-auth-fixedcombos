@@ -24,6 +24,7 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "clean": "node -e \"const fs=require('fs');if(fs.existsSync('dist'))fs.rmSync('dist',{recursive:true});\"",
+    "test": "npm run build && node --test test/*.test.mjs",
     "check:exports": "node --input-type=module -e \"import('./dist/index.js').then((m)=>{if(typeof m.default!=='function'){throw new Error('Default export must be a function');}for(const [key,value] of Object.entries(m)){if(typeof value!=='function'){throw new Error('Root export '+key+' must be a function to satisfy plugin loader constraints');}}})\"",
     "prepublishOnly": "npm run clean && npm run build && npm run check:exports"
   },
