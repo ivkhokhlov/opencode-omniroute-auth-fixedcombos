@@ -14,6 +14,40 @@
 
 ## Installation
 
+For a stable self-hosted setup, prefer pinning the plugin either to a local
+checkout (`file:`) or to your own Git fork/branch instead of relying on the
+registry latest tag.
+
+### Pin to a local checkout
+
+This is the most reliable option for servers and Raspberry Pi installs because
+it survives OpenCode restarts and cache refreshes without depending on the
+network:
+
+```json
+{
+  "plugin": [
+    "opencode-omniroute-auth@file:/root/repos/opencode-omniroute-auth-fixedcombos"
+  ]
+}
+```
+
+### Pin to a fork or branch
+
+If you prefer installing straight from GitHub, pin the exact fork/branch:
+
+```json
+{
+  "plugin": [
+    "opencode-omniroute-auth@git+https://github.com/ivkhokhlov/opencode-omniroute-auth-fixedcombos.git#main"
+  ]
+}
+```
+
+The package now builds itself during `npm install` via `prepare`, so Git-based
+installs include fresh `dist/` output instead of depending on a manually
+built repository checkout.
+
 ## Quick Start
 
 ### 1. Add plugin to opencode config

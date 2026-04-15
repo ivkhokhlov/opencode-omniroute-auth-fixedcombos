@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-04-15
+
 ### Fixed
 
 - Fixed combo-model parsing to support OmniRoute v2 `/api/combos` payloads
@@ -11,11 +13,15 @@ All notable changes to this project are documented in this file.
   `providerId`, not only raw strings.
 - Fixed combo enrichment so malformed combo metadata no longer causes the
   plugin to fall back to default models for the entire provider.
+- Fixed Git/fork installs by adding a `prepare` build step so package installs
+  produce fresh `dist/` output without requiring a manual pre-build.
 
 ### Verification
 
 - Added a regression test covering object-based combo targets returned by the
   OmniRoute combos API.
+- Bumped the package version to `1.1.1` so OpenCode/plugin caches can detect
+  the fixed build more reliably.
 
 ## [1.0.3] - 2026-03-01
 
