@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+### Fixed
+
+- Fixed combo-model parsing to support OmniRoute v2 `/api/combos` payloads
+  where `combo.models` entries are objects with fields such as `model` and
+  `providerId`, not only raw strings.
+- Fixed combo enrichment so malformed combo metadata no longer causes the
+  plugin to fall back to default models for the entire provider.
+
+### Verification
+
+- Added a regression test covering object-based combo targets returned by the
+  OmniRoute combos API.
+
 ## [1.0.3] - 2026-03-01
 
 ### Added

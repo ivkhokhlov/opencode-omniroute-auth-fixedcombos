@@ -11,10 +11,20 @@ import { REQUEST_TIMEOUT } from './constants.js';
 /**
  * OmniRoute combo definition from /api/combos
  */
+export interface OmniRouteComboModelRef {
+  id?: string;
+  kind?: string;
+  model?: string;
+  modelId?: string;
+  providerId?: string;
+  name?: string;
+  target?: string;
+}
+
 export interface OmniRouteCombo {
   id: string;
   name: string;
-  models: string[];
+  models: Array<string | OmniRouteComboModelRef>;
   strategy: 'priority' | 'weighted' | 'round-robin' | 'random' | 'least-used' | 'cost-optimized';
   config: {
     maxRetries?: number;
@@ -80,19 +90,23 @@ export async function fetchComboData(
       return null;
     }
 
-    const data = await response.json() as OmniRouteCombosResponse;
+    const data = await response.json() as OmniRouteCombosResponse | OmniRouteCombo[];
+    const rawCombos = Array.isArray(data) ? data : data?.combos;
 
     // Validate structure
-    if (!data?.combos || !Array.isArray(data.combos)) {
+    if (!Array.isArray(rawCombos)) {
       console.warn('[OmniRoute] Invalid combo data structure');
       return null;
     }
 
     // Build lookup map
     const comboMap = new Map<string, OmniRouteCombo>();
-    for (const combo of data.combos) {
+    for (const combo of rawCombos) {
       if (combo?.name) {
-        comboMap.set(combo.name, combo);
+        comboMap.set(combo.name, {
+          ...combo,
+          models: normalizeComboModels(combo.models),
+        });
       }
     }
 
@@ -138,8 +152,11 @@ export async function resolveUnderlyingModels(
   // Check if this is a combo model
   const combo = combos.get(modelId);
   if (combo) {
-    console.log(`[OmniRoute] Resolved combo "${modelId}" to ${combo.models.length} underlying models`);
-    return combo.models;
+    const underlyingModels = normalizeComboModels(combo.models);
+    console.log(
+      `[OmniRoute] Resolved combo "${modelId}" to ${underlyingModels.length} underlying models`,
+    );
+    return underlyingModels.length > 0 ? underlyingModels : [modelId];
   }
 
   // Not a combo, return as-is
@@ -155,7 +172,7 @@ export function lookupModelInIndex(
   modelsDevIndex: ModelsDevIndex | null,
   config?: OmniRouteConfig,
 ): ModelsDevModel | null {
-  if (!modelsDevIndex) return null;
+  if (!modelsDevIndex || typeof modelId !== 'string') return null;
 
   // Parse provider/model format
   const { providerKey, modelKey } = splitModelId(modelId);
@@ -344,8 +361,13 @@ export async function enrichComboModels(
 
       console.log(`[OmniRoute] Enriching combo model: ${model.id}`);
 
-      // Calculate capabilities for this combo
-      const capabilities = await calculateModelCapabilities(model, config, modelsDevIndex);
+      let capabilities: OmniRouteModelMetadata;
+      try {
+        capabilities = await calculateModelCapabilities(model, config, modelsDevIndex);
+      } catch (error) {
+        console.warn(`[OmniRoute] Failed to enrich combo model "${model.id}":`, error);
+        return model;
+      }
 
       // Merge capabilities with existing model data (capabilities take precedence)
       return {
@@ -360,4 +382,55 @@ export async function enrichComboModels(
       };
     }),
   );
+}
+
+function normalizeComboModels(
+  models: OmniRouteCombo['models'] | unknown,
+): string[] {
+  if (!Array.isArray(models)) {
+    return [];
+  }
+
+  const normalized: string[] = [];
+  for (const item of models) {
+    const modelId = getComboModelId(item);
+    if (modelId) {
+      normalized.push(modelId);
+    }
+  }
+
+  return normalized;
+}
+
+function getComboModelId(item: unknown): string | null {
+  if (typeof item === 'string') {
+    const trimmed = item.trim();
+    return trimmed !== '' ? trimmed : null;
+  }
+
+  if (!isRecord(item)) {
+    return null;
+  }
+
+  const candidateFields = ['model', 'modelId', 'target', 'name'];
+  for (const field of candidateFields) {
+    const value = item[field];
+    if (typeof value === 'string' && value.trim() !== '') {
+      return value.trim();
+    }
+  }
+
+  const rawId = item.id;
+  if (typeof rawId === 'string') {
+    const trimmed = rawId.trim();
+    if (trimmed.includes('/')) {
+      return trimmed;
+    }
+  }
+
+  return null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

@@ -183,6 +183,11 @@ This ensures safe operation by never exceeding the capabilities of any single mo
 4. It calculates the lowest common capabilities across all resolvable models
 5. These calculated capabilities are applied to the combo model
 
+The combo resolver accepts both legacy string arrays and newer OmniRoute v2
+payloads where `combo.models` entries are objects like
+`{ model, providerId, kind }`, so metadata refreshes do not break when the API
+format evolves.
+
 **Example:**
 The "Designer" combo might route to:
 - `kmc/kimi-k2.5` (context: 256000, tools: yes)

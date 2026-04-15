@@ -2,6 +2,7 @@ import { afterEach, test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  clearComboCache,
   clearModelCache,
   fetchModels,
   getCachedModels,
@@ -16,9 +17,11 @@ const CONFIG = {
   apiKey: 'test-key',
   apiMode: 'chat',
   modelCacheTtl: 60000,
+  modelsDev: { enabled: false },
 };
 
 afterEach(() => {
+  clearComboCache();
   clearModelCache();
   global.fetch = ORIGINAL_FETCH;
 });
@@ -26,7 +29,15 @@ afterEach(() => {
 test('fetchModels caches successful responses', async () => {
   let calls = 0;
 
-  global.fetch = async () => {
+  global.fetch = async (input) => {
+    const url = input instanceof Request ? input.url : String(input);
+    if (url.endsWith('/api/combos')) {
+      return new Response(JSON.stringify({ combos: [] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     calls += 1;
     return new Response(
       JSON.stringify({
@@ -53,7 +64,15 @@ test('fetchModels caches successful responses', async () => {
 test('refreshModels forces refetch', async () => {
   let calls = 0;
 
-  global.fetch = async () => {
+  global.fetch = async (input) => {
+    const url = input instanceof Request ? input.url : String(input);
+    if (url.endsWith('/api/combos')) {
+      return new Response(JSON.stringify({ combos: [] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     calls += 1;
     return new Response(
       JSON.stringify({
@@ -85,4 +104,66 @@ test('fetchModels falls back to defaults when response shape is invalid', async 
   const models = await fetchModels(CONFIG, CONFIG.apiKey, true);
   assert.ok(models.length > 0);
   assert.ok(typeof models[0].id === 'string');
+});
+
+test('fetchModels tolerates combo payloads that use object model targets', async () => {
+  global.fetch = async (input) => {
+    const url = input instanceof Request ? input.url : String(input);
+
+    if (url.endsWith('/v1/models')) {
+      return new Response(
+        JSON.stringify({
+          object: 'list',
+          data: [{ id: 'cx/gpt-5.4-high', name: 'cx/gpt-5.4-high' }],
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      );
+    }
+
+    if (url.endsWith('/api/combos')) {
+      return new Response(
+        JSON.stringify({
+          combos: [
+            {
+              id: 'combo-1',
+              name: 'cx/gpt-5.4-high',
+              models: [
+                {
+                  id: 'combo-target-1',
+                  kind: 'model',
+                  model: 'codex/gpt-5.4-high',
+                  providerId: 'codex',
+                  weight: 0,
+                },
+              ],
+              strategy: 'priority',
+              config: {},
+              createdAt: '2026-04-01T14:55:16.922Z',
+              updatedAt: '2026-04-01T14:55:16.922Z',
+            },
+          ],
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      );
+    }
+
+    throw new Error(`Unexpected fetch URL: ${url}`);
+  };
+
+  const models = await fetchModels(
+    {
+      ...CONFIG,
+      modelsDev: { enabled: false },
+    },
+    CONFIG.apiKey,
+    true,
+  );
+
+  assert.deepEqual(models.map((model) => model.id), ['cx/gpt-5.4-high']);
 });
