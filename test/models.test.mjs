@@ -106,6 +106,42 @@ test('fetchModels falls back to defaults when response shape is invalid', async 
   assert.ok(typeof models[0].id === 'string');
 });
 
+test('fetchModels preserves snake_case context limits from OmniRoute responses', async () => {
+  global.fetch = async (input) => {
+    const url = input instanceof Request ? input.url : String(input);
+    if (url.endsWith('/api/combos')) {
+      return new Response(JSON.stringify({ combos: [] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    return new Response(
+      JSON.stringify({
+        object: 'list',
+        data: [
+          {
+            id: 'cx/gpt-5.3-codex-high',
+            name: 'cx/gpt-5.3-codex-high',
+            context_length: 400000,
+            max_tokens: 128000,
+          },
+        ],
+      }),
+      {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      },
+    );
+  };
+
+  const models = await fetchModels(CONFIG, CONFIG.apiKey, true);
+
+  assert.equal(models[0].id, 'cx/gpt-5.3-codex-high');
+  assert.equal(models[0].contextWindow, 400000);
+  assert.equal(models[0].maxTokens, 128000);
+});
+
 test('fetchModels tolerates combo payloads that use object model targets', async () => {
   global.fetch = async (input) => {
     const url = input instanceof Request ? input.url : String(input);

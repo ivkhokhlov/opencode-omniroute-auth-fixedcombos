@@ -112,8 +112,8 @@ export async function fetchModels(
         name: model.name || model.id,
         description: model.description || `OmniRoute model: ${model.id}`,
         // Keep undefined for enrichment to work properly
-        contextWindow: model.contextWindow,
-        maxTokens: model.maxTokens,
+        contextWindow: model.contextWindow ?? model.context_length ?? undefined,
+        maxTokens: model.maxTokens ?? model.max_tokens ?? undefined,
         supportsStreaming: model.supportsStreaming,
         supportsVision: model.supportsVision,
         supportsTools: model.supportsTools,

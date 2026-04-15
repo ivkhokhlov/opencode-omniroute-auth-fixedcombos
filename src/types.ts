@@ -7,6 +7,8 @@ export interface OmniRouteModel {
   description?: string;
   contextWindow?: number;
   maxTokens?: number;
+  context_length?: number | null;
+  max_tokens?: number | null;
   supportsStreaming?: boolean;
   supportsVision?: boolean;
   supportsTools?: boolean;
