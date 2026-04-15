@@ -238,25 +238,25 @@ function applyModelsDevMetadata(
   const { providerKey, modelKey } = splitOmniRouteModelForLookup(model.id);
   const providerAlias = resolveProviderAlias(providerKey, config);
   const lookupKey = modelKey.toLowerCase();
-  const normalizedKey = normalizeModelKey(modelKey);
+  const strippedLookupKey = stripReasoningVariantSuffix(lookupKey);
+  const exactKeys = dedupeLookupKeys([lookupKey, strippedLookupKey]);
+  const normalizedKeys = dedupeLookupKeys(exactKeys.map((key) => normalizeModelKey(key)));
 
   // Try provider-specific exact match first
   const providerExact = providerAlias
-    ? index.exactByProvider.get(providerAlias)?.get(lookupKey)
+    ? findFirstMatch(index.exactByProvider.get(providerAlias), exactKeys)
     : undefined;
 
   // Try provider-specific normalized match
   const providerNorm = providerAlias
-    ? index.normalizedByProvider.get(providerAlias)?.get(normalizedKey)
+    ? findFirstMatch(index.normalizedByProvider.get(providerAlias), normalizedKeys)
     : undefined;
 
   // Try global exact match (only if single match to avoid ambiguity)
-  const globalExactList = index.exactGlobal.get(lookupKey);
-  const globalExact = globalExactList?.length === 1 ? globalExactList[0] : undefined;
+  const globalExact = findUniqueGlobalMatch(index.exactGlobal, exactKeys);
 
   // Try global normalized match (only if single match to avoid ambiguity)
-  const globalNormList = index.normalizedGlobal.get(normalizedKey);
-  const globalNorm = globalNormList?.length === 1 ? globalNormList[0] : undefined;
+  const globalNorm = findUniqueGlobalMatch(index.normalizedGlobal, normalizedKeys);
 
   // Pick the best match (provider-specific preferred over global)
   const best = providerExact ?? providerNorm ?? globalExact ?? globalNorm;
@@ -282,6 +282,44 @@ function applyModelsDevMetadata(
       ? { supportsStreaming: true } // Assume streaming is supported by default
       : {}),
   };
+}
+
+function stripReasoningVariantSuffix(modelKey: string): string {
+  return modelKey.replace(/-(?:none|low|medium|high|xhigh)$/i, '');
+}
+
+function dedupeLookupKeys(keys: string[]): string[] {
+  return [...new Set(keys.filter((key) => key.trim() !== ''))];
+}
+
+function findFirstMatch<T>(
+  lookup: Map<string, T> | undefined,
+  keys: string[],
+): T | undefined {
+  if (!lookup) return undefined;
+
+  for (const key of keys) {
+    const match = lookup.get(key);
+    if (match !== undefined) {
+      return match;
+    }
+  }
+
+  return undefined;
+}
+
+function findUniqueGlobalMatch<T>(
+  lookup: Map<string, T[]>,
+  keys: string[],
+): T | undefined {
+  for (const key of keys) {
+    const matches = lookup.get(key);
+    if (matches?.length === 1) {
+      return matches[0];
+    }
+  }
+
+  return undefined;
 }
 
 /**

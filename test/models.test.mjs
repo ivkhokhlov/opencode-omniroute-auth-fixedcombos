@@ -142,6 +142,89 @@ test('fetchModels preserves snake_case context limits from OmniRoute responses',
   assert.equal(models[0].maxTokens, 128000);
 });
 
+test('fetchModels maps gpt-5.3-codex reasoning variants to base models.dev limits', async () => {
+  const variants = [
+    'cx/gpt-5.3-codex',
+    'cx/gpt-5.3-codex-none',
+    'cx/gpt-5.3-codex-low',
+    'cx/gpt-5.3-codex-high',
+    'cx/gpt-5.3-codex-xhigh',
+  ];
+
+  global.fetch = async (input) => {
+    const url = input instanceof Request ? input.url : String(input);
+
+    if (url.endsWith('/v1/models')) {
+      return new Response(
+        JSON.stringify({
+          object: 'list',
+          data: variants.map((id) => ({
+            id,
+            name: id,
+            context_length: 400000,
+          })),
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      );
+    }
+
+    if (url.endsWith('/api/combos')) {
+      return new Response(JSON.stringify({ combos: [] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (url.endsWith('/api.json')) {
+      return new Response(
+        JSON.stringify({
+          openai: {
+            id: 'openai',
+            models: {
+              'gpt-5.3-codex': {
+                id: 'gpt-5.3-codex',
+                name: 'GPT-5.3 Codex',
+                limit: {
+                  context: 400000,
+                  output: 128000,
+                },
+              },
+            },
+          },
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      );
+    }
+
+    throw new Error(`Unexpected fetch URL: ${url}`);
+  };
+
+  const models = await fetchModels(
+    {
+      ...CONFIG,
+      modelsDev: {
+        enabled: true,
+        url: 'http://localhost:20128/api.json',
+      },
+    },
+    CONFIG.apiKey,
+    true,
+  );
+
+  for (const id of variants) {
+    const model = models.find((entry) => entry.id === id);
+    assert.ok(model, `missing model ${id}`);
+    assert.equal(model.contextWindow, 400000);
+    assert.equal(model.maxTokens, 128000);
+  }
+});
+
 test('fetchModels tolerates combo payloads that use object model targets', async () => {
   global.fetch = async (input) => {
     const url = input instanceof Request ? input.url : String(input);
